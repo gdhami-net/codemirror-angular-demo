@@ -4,7 +4,13 @@ import { EditorView } from '@codemirror/view';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CodeEditor } from './code-editor';
 import { ControlledCodeEditor } from './controlled-code-editor';
-import { CensusHandle, EDITOR_FOOTPRINT_PER_VIEW, installCensus } from './global-census';
+import { CensusHandle, installCensus } from './global-census';
+
+// There is deliberately no expected total here. What one editor registers
+// depends on how deep it sits — the view puts a `scroll` handler on every
+// ancestor — so a fixed number would be a number about this fixture, not
+// about CodeMirror. Each test measures what it mounted and asserts what
+// happens to that, which is the claim the post actually makes.
 
 const SEED = 'const a = 1;\n';
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -59,7 +65,7 @@ describe('what the component leaves behind', () => {
     TestBed.resetTestingModule();
   });
 
-  it('registers four handlers outside its element and one observer, per mounted editor', async () => {
+  it('registers handlers on the document, the window and every ancestor, plus one observer', async () => {
     const fixture = TestBed.createComponent(SwitchHost);
     fixture.detectChanges();
     await fixture.whenStable();
@@ -77,7 +83,14 @@ describe('what the component leaves behind', () => {
     // and on the window itself where it does not. One of them, either way.
     expect((reading.window.get('beforeprint') ?? 0) + reading.printQuery).toBe(1);
     expect(reading.liveObservers).toBe(1);
-    expect(census.editorFootprint()).toBe(EDITOR_FOOTPRINT_PER_VIEW);
+    // One `scroll` handler per ancestor element above the editor. The fixture
+    // is attached to document.body, so there is at least the host element and
+    // body and html; asserting "more than one" keeps the test about the
+    // library rather than about this fixture's nesting.
+    expect(reading.ancestorScroll).toBeGreaterThan(1);
+    expect(census.editorFootprint()).toBe(
+      1 + 1 + 1 + 1 + reading.liveObservers + reading.ancestorScroll + reading.viewObservers,
+    );
 
     fixture.destroy();
   });
@@ -87,7 +100,8 @@ describe('what the component leaves behind', () => {
     fixture.componentInstance.showOneWay.set(true);
     fixture.detectChanges();
     await fixture.whenStable();
-    expect(census.editorFootprint()).toBe(EDITOR_FOOTPRINT_PER_VIEW);
+    const mounted = census.editorFootprint();
+    expect(mounted).toBeGreaterThan(0);
 
     fixture.componentInstance.showOneWay.set(false);
     fixture.detectChanges();
@@ -99,6 +113,10 @@ describe('what the component leaves behind', () => {
     expect(reading.window.get('scroll')).toBe(0);
     expect((reading.window.get('beforeprint') ?? 0) + reading.printQuery).toBe(0);
     expect(reading.liveObservers).toBe(0);
+    expect(reading.ancestorScroll).toBe(0);
+    expect(reading.viewObservers).toBe(0);
+    // Everything it put outside itself, given back. Including the handlers on
+    // body and html, which is the half the first version of this missed.
     expect(census.editorFootprint()).toBe(0);
 
     fixture.destroy();
@@ -110,7 +128,8 @@ describe('what the component leaves behind', () => {
     host.showControlled.set(true);
     fixture.detectChanges();
     await fixture.whenStable();
-    expect(census.editorFootprint()).toBe(EDITOR_FOOTPRINT_PER_VIEW);
+    const mounted = census.editorFootprint();
+    expect(mounted).toBeGreaterThan(0);
 
     const orphan = host.controlled()!.editorView!;
     orphans.push(orphan);
@@ -120,7 +139,7 @@ describe('what the component leaves behind', () => {
 
     // Angular took the element out of the document. The editor did not notice.
     expect(orphan.dom.isConnected).toBe(false);
-    expect(census.editorFootprint()).toBe(EDITOR_FOOTPRINT_PER_VIEW);
+    expect(census.editorFootprint()).toBe(mounted);
 
     orphans.pop();
     orphan.destroy();

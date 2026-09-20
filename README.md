@@ -47,15 +47,19 @@ is no `ngOnDestroy`.
 |---|---|---|
 | caret at offset 10, a line appended from outside | stays at 10 | **collapses to 0** |
 | caret at offset 10, a header inserted from outside | moves to 20, same character | **collapses to 0** |
-| global handlers + observers while mounted | 5 | 5 |
-| the same, after Angular removes the component | **0** | **5** |
+| registrations outside the element while mounted | 10 | 10 |
+| the same, after Angular removes the component | **0** | **10** |
 | a DOM change in the detached tree afterwards | ignored | **becomes a transaction** |
 
-The five are one `selectionchange` handler on `document`, `resize`, `scroll` and
-`beforeprint` on `window`, and one `MutationObserver` on the editor's content
-element. `src/app/global-census.ts` counts them by wrapping
-`addEventListener`/`removeEventListener` on both targets and `observe`/`disconnect`
-on `MutationObserver.prototype`. Observers pointed at a node outside a
+Ten in this fixture: one `selectionchange` on `document`, `resize`, `scroll` and
+`beforeprint` on `window`, one `MutationObserver` on the editor's content
+element, and one `scroll` handler on each ancestor element above the editor.
+That last group is why there is no fixed number — nest the editor deeper and it
+grows. `src/app/global-census.ts` counts them by wrapping
+`addEventListener`/`removeEventListener` on `document`, `window`,
+`MediaQueryList` and `EventTarget.prototype`, plus `observe`/`disconnect` on the
+observer prototypes. In a browser there are three more that jsdom cannot show:
+a `ResizeObserver` and two `IntersectionObserver`s. Observers pointed at a node outside a
 `.cm-editor` are excluded, so an observer belonging to the test harness cannot
 be mistaken for a leak.
 
