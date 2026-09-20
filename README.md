@@ -71,14 +71,15 @@ listener's closure wrote into the destroyed component's own field.
 
 ## The tests
 
-`npm run check` is `ng test`. Seventeen tests across four files:
+`npm run check` is `ng test`. Nineteen tests across four files:
 
 - `src/app/keystroke-reaches-the-form.spec.ts` — an edit made the way a browser
   makes one (change the text node inside the contenteditable, do not call
   `dispatch`) becomes a transaction, lands on a `FormControl`, and emits exactly
   once per edit.
 - `src/app/external-write-and-the-cursor.spec.ts` — caret offsets before and
-  after a write from outside, for both components; plus the minimal-change
+  after a write from outside, for both components, and where a two-ended
+  selection lands when the whole document is replaced; plus the minimal-change
   helper, including the case where a naive prefix scan would cut a surrogate
   pair in half.
 - `src/app/teardown.spec.ts` — the census across mount, unmount and destroy, and

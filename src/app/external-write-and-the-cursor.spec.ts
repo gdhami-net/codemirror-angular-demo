@@ -120,6 +120,36 @@ describe('a write from outside, and where the caret ends up', () => {
     expect(view.state.doc.toString()).toBe(header + SEED);
     expect(view.state.selection.main.head).toBe(0);
   });
+
+  // A caret has one end and collapses. A selection has two, and SelectionRange
+  // .map sends them opposite ways: the lower boundary maps with assoc 1 and
+  // the upper with assoc -1 (@codemirror/state index.js:1321-1329), so across
+  // a whole-document replacement they swap. What comes back runs from the end
+  // of the new text to its start, and the raw from/to fields come out reversed
+  // with it.
+  it('turns a selection inside out when the whole document is replaced', async () => {
+    const fixture = await mount(ControlledHost);
+    const host = fixture.componentInstance;
+    const view = host.editor().editorView!;
+
+    view.dispatch({ selection: { anchor: 5, head: 15 } });
+    expect(view.state.selection.main.from).toBe(5);
+    expect(view.state.selection.main.to).toBe(15);
+
+    const replacement = 'completely different text, and longer than what it replaced\n';
+    host.value.set(replacement);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(view.state.doc.toString()).toBe(replacement);
+    // Measured: anchor at the end of the new text, head at the start.
+    expect(view.state.selection.main.anchor).toBe(view.state.doc.length);
+    expect(view.state.selection.main.head).toBe(0);
+    // And the boundaries themselves are reversed, which is what a map through
+    // a replacement of everything leaves behind.
+    expect(view.state.selection.main.from).toBe(view.state.doc.length);
+    expect(view.state.selection.main.to).toBe(0);
+  });
 });
 
 describe('the minimal change itself', () => {
