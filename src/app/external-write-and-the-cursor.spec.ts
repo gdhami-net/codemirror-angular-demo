@@ -98,6 +98,28 @@ describe('a write from outside, and where the caret ends up', () => {
     expect(view.state.doc.toString()).toBe(SEED + 'const c = 3;\n');
     expect(view.state.selection.main.head).toBe(0);
   });
+
+  // The fourth cell of the post's table. It read as though all four numbers
+  // came from this file, and only three did - the controlled-plus-header case
+  // was assumed rather than measured. It is measured now.
+  it('collapses the caret to the start for a header too, not just an append', async () => {
+    const fixture = await mount(ControlledHost);
+    const host = fixture.componentInstance;
+    const view = host.editor().editorView!;
+
+    view.dispatch({ selection: { anchor: CARET } });
+    expect(view.state.selection.main.head).toBe(CARET);
+
+    const header = '// header\n';
+    host.value.set(header + SEED);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    // One-way moves the caret to CARET + header.length here. Replacing the
+    // whole document throws the selection away wherever the edit landed.
+    expect(view.state.doc.toString()).toBe(header + SEED);
+    expect(view.state.selection.main.head).toBe(0);
+  });
 });
 
 describe('the minimal change itself', () => {
@@ -120,7 +142,9 @@ describe('the minimal change itself', () => {
 
   it('does not cut a surrogate pair in half', () => {
     // Both strings share the leading high surrogate of the emoji, so a scan
-    // over code units would produce from: 5 and leave a lone surrogate behind.
+    // over code units produces from: 6 - a range starting inside a character.
+    // The resulting document is still correct (the halves re-pair); what is
+    // wrong is the change, which claims to replace half a character.
     const before = 'tag: \u{1F600}';
     const after = 'tag: \u{1F680}';
     const change = minimalChange(before, after) as { from: number; to: number; insert: string };
